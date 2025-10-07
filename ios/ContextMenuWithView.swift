@@ -44,8 +44,6 @@ class ContextMenuWithView: ExpoView {
   private var contextMenuInteraction: UIContextMenuInteraction?
   private var overlayWindow: UIWindow?
   private var overlayViewController: UIViewController?
-  private var pendingEmojiSelection: String?
-  private var pendingPlusButtonPress: Bool = false
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -308,7 +306,7 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
     }
 
     animator?.addAnimations {
-      auxView.transform = .identity
+      auxView.transform = .identityAnd
       auxView.alpha = 1.0
     }
   }
@@ -322,13 +320,24 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
 
   @objc private func emojiTapped(_ sender: UIButton) {
     guard let emoji = sender.titleLabel?.text else { return }
-    pendingEmojiSelection = emoji
-    contextMenuInteraction?.dismissMenu()
+
+    // Fire event immediately for instant feedback
+    onEmojiSelected(["emoji": emoji])
+
+    // Tiny delay allows React to schedule updates before unmounting begins
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
+      self?.contextMenuInteraction?.dismissMenu()
+    }
   }
 
   @objc private func plusButtonTapped() {
-    pendingPlusButtonPress = true
-    contextMenuInteraction?.dismissMenu()
+    // Fire event immediately for instant feedback
+    onPlusButtonPressed([:])
+
+    // Tiny delay allows React to schedule updates before unmounting begins
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
+      self?.contextMenuInteraction?.dismissMenu()
+    }
   }
 
   func contextMenuInteraction(
@@ -354,17 +363,6 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
 
     animator?.addCompletion {
       self.cleanupOverlay()
-
-      // Fire events after menu is fully dismissed to avoid React Native view hierarchy conflicts
-      if let emoji = self.pendingEmojiSelection {
-        self.onEmojiSelected(["emoji": emoji])
-        self.pendingEmojiSelection = nil
-      }
-
-      if self.pendingPlusButtonPress {
-        self.onPlusButtonPressed([:])
-        self.pendingPlusButtonPress = false
-      }
     }
   }
 
