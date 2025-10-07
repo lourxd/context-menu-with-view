@@ -306,7 +306,7 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
     }
 
     animator?.addAnimations {
-      auxView.transform = .identityAnd
+      auxView.transform = .identity
       auxView.alpha = 1.0
     }
   }
