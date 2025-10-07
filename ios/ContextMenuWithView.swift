@@ -320,19 +320,13 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
 
   @objc private func emojiTapped(_ sender: UIButton) {
     guard let emoji = sender.titleLabel?.text else { return }
-    print("🎯 Emoji tapped: \(emoji)")
-
     contextMenuInteraction?.dismissMenu()
     onEmojiSelected(["emoji": emoji])
   }
 
   @objc private func plusButtonTapped() {
-    print("🎯 Plus button tapped - EVENT FIRED!")
-
     contextMenuInteraction?.dismissMenu()
     onPlusButtonPressed([:])
-
-    print("🎯 Plus button - Context menu dismissed and event dispatched")
   }
 
   func contextMenuInteraction(
