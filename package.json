@@ -1,7 +1,7 @@
 {
   "name": "context-menu-with-view",
   "version": "0.1.0",
-  "description": "My new module",
+  "description": "Context Menu from react native with a view on top for message reactions",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {
