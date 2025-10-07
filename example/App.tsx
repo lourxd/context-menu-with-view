@@ -1,73 +1,95 @@
-import { useEvent } from 'expo';
-import ContextMenuWithView, { ContextMenuWithView } from 'context-menu-with-view';
-import { Button, SafeAreaView, ScrollView, Text, View } from 'react-native';
+import { ContextMenuWithView } from 'context-menu-with-view';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+
+const messages = [
+  { id: '1', text: 'Hey! How are you?', isOwn: false },
+  { id: '2', text: 'I am doing great, thanks!', isOwn: true },
+  { id: '3', text: 'That is awesome to hear!', isOwn: false },
+  { id: '4', text: 'What are you up to today?', isOwn: false },
+  { id: '5', text: 'Working on this cool React Native project', isOwn: true },
+  { id: '6', text: 'Sounds exciting!', isOwn: false },
+];
 
 export default function App() {
-  const onChangePayload = useEvent(ContextMenuWithView, 'onChange');
-
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.container}>
-        <Text style={styles.header}>Module API Example</Text>
-        <Group name="Constants">
-          <Text>{ContextMenuWithView.PI}</Text>
-        </Group>
-        <Group name="Functions">
-          <Text>{ContextMenuWithView.hello()}</Text>
-        </Group>
-        <Group name="Async functions">
-          <Button
-            title="Set value"
-            onPress={async () => {
-              await ContextMenuWithView.setValueAsync('Hello from JS!');
-            }}
-          />
-        </Group>
-        <Group name="Events">
-          <Text>{onChangePayload?.value}</Text>
-        </Group>
-        <Group name="Views">
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.header}>Messages</Text>
+
+        {messages.map((message) => (
           <ContextMenuWithView
-            url="https://www.example.com"
-            onLoad={({ nativeEvent: { url } }) => console.log(`Loaded: ${url}`)}
-            style={styles.view}
-          />
-        </Group>
+            key={message.id}
+            menuItems={[
+              { id: 'reply', title: 'Reply', systemImage: 'arrowshape.turn.up.left' },
+              { id: 'copy', title: 'Copy', systemImage: 'doc.on.doc' },
+              { id: 'delete', title: 'Delete', systemImage: 'trash' },
+            ]}
+            auxiliaryAlignment={message.isOwn ? 'right' : 'left'}
+            auxiliaryBackgroundColor={message.isOwn ? '#007AFF' : '#2C2C2E'}
+            plusButtonColor="#FFFFFF"
+            emojis={['❤️', '👍', '😂', '😮', '😢', '🙏']}
+            onMenuAction={(event) => {
+              console.log('Menu action:', event.nativeEvent, 'for message:', message.id);
+            }}
+            onEmojiSelected={(event) => {
+              console.log('Emoji selected:', event.nativeEvent.emoji, 'for message:', message.id);
+            }}
+            onPlusButtonPressed={() => {
+              console.log('Plus button pressed for message:', message.id);
+            }}
+            style={[styles.messageContainer, message.isOwn && styles.ownMessage]}
+          >
+            <View style={[styles.messageBubble, message.isOwn && styles.ownBubble]}>
+              <Text style={[styles.messageText, message.isOwn && styles.ownText]}>
+                {message.text}
+              </Text>
+            </View>
+          </ContextMenuWithView>
+        ))}
       </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function Group(props: { name: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.group}>
-      <Text style={styles.groupHeader}>{props.name}</Text>
-      {props.children}
     </View>
   );
 }
 
-const styles = {
-  header: {
-    fontSize: 30,
-    margin: 20,
-  },
-  groupHeader: {
-    fontSize: 20,
-    marginBottom: 20,
-  },
-  group: {
-    margin: 20,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 20,
-  },
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#eee',
+    backgroundColor: '#000',
   },
-  view: {
+  scrollContainer: {
     flex: 1,
-    height: 200,
   },
-};
+  scrollContent: {
+    padding: 16,
+  },
+  header: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 20,
+  },
+  messageContainer: {
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+    maxWidth: '75%',
+  },
+  ownMessage: {
+    alignSelf: 'flex-end',
+  },
+  messageBubble: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  ownBubble: {
+    backgroundColor: '#007AFF',
+  },
+  messageText: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  ownText: {
+    color: '#fff',
+  },
+});
