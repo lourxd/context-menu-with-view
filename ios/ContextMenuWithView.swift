@@ -44,6 +44,8 @@ class ContextMenuWithView: ExpoView {
   private var contextMenuInteraction: UIContextMenuInteraction?
   private var overlayWindow: UIWindow?
   private var overlayViewController: UIViewController?
+  private var pendingEmojiSelection: String?
+  private var pendingPlusButtonPress: Bool = false
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -320,13 +322,13 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
 
   @objc private func emojiTapped(_ sender: UIButton) {
     guard let emoji = sender.titleLabel?.text else { return }
+    pendingEmojiSelection = emoji
     contextMenuInteraction?.dismissMenu()
-    onEmojiSelected(["emoji": emoji])
   }
 
   @objc private func plusButtonTapped() {
+    pendingPlusButtonPress = true
     contextMenuInteraction?.dismissMenu()
-    onPlusButtonPressed([:])
   }
 
   func contextMenuInteraction(
@@ -352,6 +354,17 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
 
     animator?.addCompletion {
       self.cleanupOverlay()
+
+      // Fire events after menu is fully dismissed to avoid React Native view hierarchy conflicts
+      if let emoji = self.pendingEmojiSelection {
+        self.onEmojiSelected(["emoji": emoji])
+        self.pendingEmojiSelection = nil
+      }
+
+      if self.pendingPlusButtonPress {
+        self.onPlusButtonPressed([:])
+        self.pendingPlusButtonPress = false
+      }
     }
   }
 
