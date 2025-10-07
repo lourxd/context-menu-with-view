@@ -321,21 +321,31 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
   @objc private func emojiTapped(_ sender: UIButton) {
     guard let emoji = sender.titleLabel?.text else { return }
 
-    // Fire event immediately for instant feedback
+    // Fire event FIRST (before dismissal lifecycle begins)
     onEmojiSelected(["emoji": emoji])
 
-    // Tiny delay allows React to schedule updates before unmounting begins
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
+    // Hide overlay with animation
+    UIView.animate(withDuration: 0.2) {
+      self.auxiliaryView?.alpha = 0
+    }
+
+    // Dismiss with native animation - delay slightly to avoid React update conflicts
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
       self?.contextMenuInteraction?.dismissMenu()
     }
   }
 
   @objc private func plusButtonTapped() {
-    // Fire event immediately for instant feedback
+    // Fire event FIRST (before dismissal lifecycle begins)
     onPlusButtonPressed([:])
 
-    // Tiny delay allows React to schedule updates before unmounting begins
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
+    // Hide overlay with animation
+    UIView.animate(withDuration: 0.2) {
+      self.auxiliaryView?.alpha = 0
+    }
+
+    // Dismiss with native animation - delay slightly to avoid React update conflicts
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
       self?.contextMenuInteraction?.dismissMenu()
     }
   }
