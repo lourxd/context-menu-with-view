@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "context-menu-with-view": ["../src/index"],
+      "context-menu-with-view/*": ["../src/*"]
+    }
+  }
+}
