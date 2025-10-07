@@ -227,9 +227,6 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
 
     stackView.addArrangedSubview(plusButton)
 
-    // Calculate position in window
-    let frameInWindow = self.convert(self.bounds, to: keyWindow)
-
     let auxWidth: CGFloat = 270
     let auxHeight: CGFloat = 54
 
@@ -244,13 +241,33 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
       auxX = (keyWindow.bounds.width - auxWidth) / 2
     }
 
-    let auxY = frameInWindow.minY - auxHeight - 8
+    // Calculate where iOS will position the preview
+    let frameInWindow = self.convert(self.bounds, to: keyWindow)
 
-    let auxFrame = CGRect(x: auxX, y: auxY, width: auxWidth, height: auxHeight)
+    let estimatedMenuItemHeight: CGFloat = 47
+    let estimatedMenuPadding: CGFloat = 10
+    let estimatedMenuHeight = CGFloat(menuItems.count) * estimatedMenuItemHeight + estimatedMenuPadding * 2
+
+    let previewToMenuSpacing: CGFloat = 10
+    let menuBottomMargin: CGFloat = 6
+
+    let totalSpaceNeeded = estimatedMenuHeight + previewToMenuSpacing + menuBottomMargin
+    let spaceAvailableBelow = keyWindow.bounds.height - frameInWindow.maxY - keyWindow.safeAreaInsets.bottom
+
+    let actualPreviewY: CGFloat
+    if spaceAvailableBelow < totalSpaceNeeded {
+      let pushUpAmount = totalSpaceNeeded - spaceAvailableBelow
+      let minY = keyWindow.safeAreaInsets.top + 10
+      actualPreviewY = max(frameInWindow.minY - pushUpAmount, minY)
+    } else {
+      actualPreviewY = frameInWindow.minY
+    }
+
+    let auxY = actualPreviewY - auxHeight - 8
 
     // Create overlay window above context menu
     overlayWindow = UIWindow(windowScene: windowScene)
-    overlayWindow?.frame = auxFrame
+    overlayWindow?.frame = CGRect(x: auxX, y: auxY, width: auxWidth, height: auxHeight)
     overlayWindow?.windowLevel = UIWindow.Level.alert + 1000
     overlayWindow?.backgroundColor = .clear
     overlayWindow?.isUserInteractionEnabled = true
@@ -259,20 +276,12 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
     // Create view controller
     overlayViewController = UIViewController()
     overlayViewController?.view.backgroundColor = .clear
-    overlayViewController?.view.frame = CGRect(origin: .zero, size: auxFrame.size)
+    overlayViewController?.view.frame = CGRect(origin: .zero, size: CGSize(width: auxWidth, height: auxHeight))
     overlayWindow?.rootViewController = overlayViewController
 
     // Add auxiliary view to overlay
     overlayViewController?.view.addSubview(auxView)
-    auxView.frame = CGRect(origin: .zero, size: auxFrame.size)
-
-    // Show overlay
-    overlayWindow?.makeKeyAndVisible()
-
-    // Restore key window status
-    DispatchQueue.main.async {
-      keyWindow.makeKey()
-    }
+    auxView.frame = CGRect(origin: .zero, size: CGSize(width: auxWidth, height: auxHeight))
 
     // Set initial transform for subtle fade-in animation
     let initialTransform: CGAffineTransform
@@ -287,6 +296,14 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
 
     auxView.transform = initialTransform
     auxView.alpha = 0.0
+
+    // Show the window immediately
+    overlayWindow?.makeKeyAndVisible()
+
+    // Restore key window status
+    DispatchQueue.main.async {
+      keyWindow.makeKey()
+    }
 
     animator?.addAnimations {
       auxView.transform = .identity
