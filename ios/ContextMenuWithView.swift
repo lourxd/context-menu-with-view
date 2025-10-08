@@ -194,7 +194,7 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
     // Add "+" button using SF Symbol with circle
     let plusButton = UIButton(type: .system)
     let plusConfig = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
-    let plusImage = UIImage(systemName: "plus.circle.fill", withConfiguration: plusConfig)
+    let plusImage = UIImage(systemName: "plus.circle", withConfiguration: plusConfig)
     plusButton.setImage(plusImage, for: .normal)
     plusButton.frame = CGRect(x: 0, y: 0, width: 36, height: 36)
 
