@@ -43,7 +43,7 @@ class ContextMenuWithView: ExpoView {
   private var auxiliaryView: UIView?
   private var contextMenuInteraction: UIContextMenuInteraction?
   private var overlayWindow: UIWindow?
-  private var overlayViewController: UIViewController?
+  private var isDismissing = false
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -52,6 +52,10 @@ class ContextMenuWithView: ExpoView {
     let interaction = UIContextMenuInteraction(delegate: self)
     self.contextMenuInteraction = interaction
     addInteraction(interaction)
+  }
+
+  deinit {
+    cleanupOverlay()
   }
 
   private func hexStringToUIColor(hex: String) -> UIColor {
@@ -143,8 +147,8 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
     willDisplayMenuFor configuration: UIContextMenuConfiguration,
     animator: UIContextMenuInteractionAnimating?
   ) {
+    guard !isDismissing else { return }
     guard let keyWindow = findKeyWindow() else { return }
-    guard let windowScene = keyWindow.windowScene else { return }
 
     // Create auxiliary view
     let auxView = UIView()
@@ -154,7 +158,6 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
       auxView.backgroundColor = .systemBlue
     }
     auxView.layer.cornerRadius = 25
-    auxView.translatesAutoresizingMaskIntoConstraints = false
     auxView.isUserInteractionEnabled = true
 
     // Add shadow for depth
@@ -165,22 +168,18 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
 
     self.auxiliaryView = auxView
 
+    let auxWidth: CGFloat = 300
+    let auxHeight: CGFloat = 54
+
     // Create horizontal stack for emojis
     let stackView = UIStackView()
     stackView.axis = .horizontal
     stackView.distribution = .equalSpacing
     stackView.alignment = .center
     stackView.spacing = 4
-    stackView.translatesAutoresizingMaskIntoConstraints = false
     stackView.isUserInteractionEnabled = true
+    stackView.frame = CGRect(x: 8, y: 0, width: auxWidth - 16, height: auxHeight)
     auxView.addSubview(stackView)
-
-    NSLayoutConstraint.activate([
-      stackView.leadingAnchor.constraint(equalTo: auxView.leadingAnchor, constant: 8),
-      stackView.trailingAnchor.constraint(equalTo: auxView.trailingAnchor, constant: -8),
-      stackView.topAnchor.constraint(equalTo: auxView.topAnchor),
-      stackView.bottomAnchor.constraint(equalTo: auxView.bottomAnchor)
-    ])
 
     // Add up to 6 emojis
     let displayEmojis = Array(emojis.prefix(6))
@@ -192,10 +191,12 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
       stackView.addArrangedSubview(button)
     }
 
-    // Add "+" button
+    // Add "+" button using SF Symbol with circle
     let plusButton = UIButton(type: .system)
-    plusButton.setTitle("+", for: .normal)
-    plusButton.titleLabel?.font = .systemFont(ofSize: 22, weight: .semibold)
+    let plusConfig = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+    let plusImage = UIImage(systemName: "plus.circle.fill", withConfiguration: plusConfig)
+    plusButton.setImage(plusImage, for: .normal)
+    plusButton.frame = CGRect(x: 0, y: 0, width: 36, height: 36)
 
     // Set button color
     let buttonColor: UIColor
@@ -204,31 +205,15 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
     } else {
       buttonColor = .white.withAlphaComponent(0.7)
     }
-    plusButton.setTitleColor(buttonColor, for: .normal)
     plusButton.tintColor = buttonColor
 
     plusButton.backgroundColor = .clear
-    plusButton.layer.cornerRadius = 18
-    plusButton.layer.borderWidth = 1.5
-    plusButton.layer.borderColor = buttonColor.withAlphaComponent(0.5).cgColor
     plusButton.contentVerticalAlignment = .center
     plusButton.contentHorizontalAlignment = .center
-
-    // Force the button to maintain its size
-    plusButton.setContentHuggingPriority(.required, for: .horizontal)
-    plusButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-    NSLayoutConstraint.activate([
-      plusButton.widthAnchor.constraint(equalToConstant: 36),
-      plusButton.heightAnchor.constraint(equalToConstant: 36)
-    ])
 
     plusButton.addTarget(self, action: #selector(plusButtonTapped), for: .touchUpInside)
 
     stackView.addArrangedSubview(plusButton)
-
-    let auxWidth: CGFloat = 270
-    let auxHeight: CGFloat = 54
 
     // Calculate X position based on alignment
     let auxX: CGFloat
@@ -265,23 +250,25 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
 
     let auxY = actualPreviewY - auxHeight - 8
 
-    // Create overlay window above context menu
-    overlayWindow = UIWindow(windowScene: windowScene)
-    overlayWindow?.frame = CGRect(x: auxX, y: auxY, width: auxWidth, height: auxHeight)
-    overlayWindow?.windowLevel = UIWindow.Level.alert + 1000
-    overlayWindow?.backgroundColor = .clear
-    overlayWindow?.isUserInteractionEnabled = true
-    overlayWindow?.clipsToBounds = false
+    // Create overlay window above context menu (required to be clickable above blur)
+    guard let windowScene = keyWindow.windowScene else { return }
 
-    // Create view controller
-    overlayViewController = UIViewController()
-    overlayViewController?.view.backgroundColor = .clear
-    overlayViewController?.view.frame = CGRect(origin: .zero, size: CGSize(width: auxWidth, height: auxHeight))
-    overlayWindow?.rootViewController = overlayViewController
+    let overlay = UIWindow(windowScene: windowScene)
+    overlay.windowLevel = UIWindow.Level.alert + 1000
+    overlay.backgroundColor = .clear
+    overlay.isUserInteractionEnabled = true
+    overlay.frame = CGRect(x: auxX, y: auxY, width: auxWidth, height: auxHeight)
 
-    // Add auxiliary view to overlay
-    overlayViewController?.view.addSubview(auxView)
-    auxView.frame = CGRect(origin: .zero, size: CGSize(width: auxWidth, height: auxHeight))
+    // Create a minimal root view controller for the overlay window
+    let overlayVC = UIViewController()
+    overlayVC.view.backgroundColor = .clear
+    overlay.rootViewController = overlayVC
+
+    // Set up auxiliary view in the overlay window
+    auxView.frame = CGRect(x: 0, y: 0, width: auxWidth, height: auxHeight)
+    overlay.rootViewController?.view.addSubview(auxView)
+
+    self.overlayWindow = overlay
 
     // Set initial transform for subtle fade-in animation
     let initialTransform: CGAffineTransform
@@ -297,13 +284,8 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
     auxView.transform = initialTransform
     auxView.alpha = 0.0
 
-    // Show the window immediately
-    overlayWindow?.makeKeyAndVisible()
-
-    // Restore key window status
-    DispatchQueue.main.async {
-      keyWindow.makeKey()
-    }
+    // Show the overlay window
+    overlay.isHidden = false
 
     animator?.addAnimations {
       auxView.transform = .identity
@@ -319,41 +301,38 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
   }
 
   @objc private func emojiTapped(_ sender: UIButton) {
-    guard let emoji = sender.titleLabel?.text else { return }
+    guard !isDismissing, let emoji = sender.titleLabel?.text else { return }
+    isDismissing = true
 
     // Fire event immediately
     onEmojiSelected(["emoji": emoji])
 
-    // Dismiss by removing interaction (avoids React Native crash)
+    // Dismiss menu properly
     dismissMenuSafely()
   }
 
   @objc private func plusButtonTapped() {
+    guard !isDismissing else { return }
+    isDismissing = true
+
     // Fire event immediately
     onPlusButtonPressed([:])
 
-    // Dismiss by removing interaction (avoids React Native crash)
+    // Dismiss menu properly
     dismissMenuSafely()
   }
 
   private func dismissMenuSafely() {
-    // Fade out overlay
-    UIView.animate(withDuration: 0.25) {
+    // Animate out the auxiliary view
+    UIView.animate(withDuration: 0.2, animations: {
       self.auxiliaryView?.alpha = 0
-    }
+      self.auxiliaryView?.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
+    })
 
-    // Remove interaction to dismiss menu (no crash because we're not calling dismissMenu)
-    guard let interaction = contextMenuInteraction else { return }
-
-    // Small delay to let tap complete
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-      self?.removeInteraction(interaction)
-
-      // Re-add after cleanup
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-        self?.cleanupOverlay()
-        self?.addInteraction(interaction)
-      }
+    // Dismiss the context menu using the interaction
+    // Run on main thread to avoid potential race conditions
+    DispatchQueue.main.async { [weak self] in
+      self?.contextMenuInteraction?.dismissMenu()
     }
   }
 
@@ -362,20 +341,22 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
     willEndFor configuration: UIContextMenuConfiguration,
     animator: UIContextMenuInteractionAnimating?
   ) {
-    // Subtle fade out in the direction it came from
-    let exitTransform: CGAffineTransform
-    switch auxiliaryAlignment {
-    case "left":
-      exitTransform = CGAffineTransform(translationX: -20, y: 0)
-    case "right":
-      exitTransform = CGAffineTransform(translationX: 20, y: 0)
-    default:
-      exitTransform = CGAffineTransform(scaleX: 0.95, y: 0.95)
-    }
+    // If we haven't already animated out (from button tap), do it now
+    if !isDismissing {
+      let exitTransform: CGAffineTransform
+      switch auxiliaryAlignment {
+      case "left":
+        exitTransform = CGAffineTransform(translationX: -20, y: 0)
+      case "right":
+        exitTransform = CGAffineTransform(translationX: 20, y: 0)
+      default:
+        exitTransform = CGAffineTransform(scaleX: 0.95, y: 0.95)
+      }
 
-    animator?.addAnimations {
-      self.auxiliaryView?.transform = exitTransform
-      self.auxiliaryView?.alpha = 0.0
+      animator?.addAnimations {
+        self.auxiliaryView?.transform = exitTransform
+        self.auxiliaryView?.alpha = 0.0
+      }
     }
 
     animator?.addCompletion {
@@ -384,16 +365,24 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
   }
 
   private func cleanupOverlay() {
-    if let overlayWindow = overlayWindow {
-      overlayWindow.isHidden = true
-      overlayWindow.rootViewController = nil
-      self.overlayWindow = nil
-      self.overlayViewController = nil
-    }
+    // Clean up on main thread
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
 
-    if let auxiliaryView = auxiliaryView {
-      auxiliaryView.removeFromSuperview()
+      // Clean up auxiliary view
+      self.auxiliaryView?.removeFromSuperview()
       self.auxiliaryView = nil
+
+      // Clean up overlay window thoroughly
+      if let overlay = self.overlayWindow {
+        overlay.rootViewController?.view.subviews.forEach { $0.removeFromSuperview() }
+        overlay.rootViewController = nil
+        overlay.isHidden = true
+        self.overlayWindow = nil
+      }
+
+      // Reset dismissing flag
+      self.isDismissing = false
     }
   }
 }
