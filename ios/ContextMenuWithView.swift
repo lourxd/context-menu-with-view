@@ -321,32 +321,39 @@ extension ContextMenuWithView: UIContextMenuInteractionDelegate {
   @objc private func emojiTapped(_ sender: UIButton) {
     guard let emoji = sender.titleLabel?.text else { return }
 
-    // Fire event FIRST (before dismissal lifecycle begins)
+    // Fire event immediately
     onEmojiSelected(["emoji": emoji])
 
-    // Hide overlay with animation
-    UIView.animate(withDuration: 0.2) {
-      self.auxiliaryView?.alpha = 0
-    }
-
-    // Dismiss with native animation - delay slightly to avoid React update conflicts
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-      self?.contextMenuInteraction?.dismissMenu()
-    }
+    // Dismiss by removing interaction (avoids React Native crash)
+    dismissMenuSafely()
   }
 
   @objc private func plusButtonTapped() {
-    // Fire event FIRST (before dismissal lifecycle begins)
+    // Fire event immediately
     onPlusButtonPressed([:])
 
-    // Hide overlay with animation
-    UIView.animate(withDuration: 0.2) {
+    // Dismiss by removing interaction (avoids React Native crash)
+    dismissMenuSafely()
+  }
+
+  private func dismissMenuSafely() {
+    // Fade out overlay
+    UIView.animate(withDuration: 0.25) {
       self.auxiliaryView?.alpha = 0
     }
 
-    // Dismiss with native animation - delay slightly to avoid React update conflicts
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-      self?.contextMenuInteraction?.dismissMenu()
+    // Remove interaction to dismiss menu (no crash because we're not calling dismissMenu)
+    guard let interaction = contextMenuInteraction else { return }
+
+    // Small delay to let tap complete
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+      self?.removeInteraction(interaction)
+
+      // Re-add after cleanup
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        self?.cleanupOverlay()
+        self?.addInteraction(interaction)
+      }
     }
   }
 
